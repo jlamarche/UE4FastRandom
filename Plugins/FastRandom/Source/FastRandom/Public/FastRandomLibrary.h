@@ -122,33 +122,15 @@ class FASTRANDOM_API UFastRandomLibrary : public UBlueprintFunctionLibrary
 		return (InMin) + (InMax - InMin) * _FastRandomFloatGaussian5();
 	}
 	
-	// Common logic for the fast V random in cone
+	// Common logic for the fast Gaussian random in cone
 	static FORCEINLINE FVector _FastVRandConeImplementation(FVector const& Dir, float ConeHalfAngleRad, float RandU, float RandV)
 	{
-		// Get spherical coords that have an even distribution over the unit sphere
-		// Method described at http://mathworld.wolfram.com/SpherePointPicking.html
-		float Theta = 2.f * PI * RandU;
-		float Phi = FMath::Acos((2.f * RandV) - 1.f);
-		
-		// restrict phi to [0, ConeHalfAngleRad]
-		// this gives an even distribution of points on the surface of the cone
-		// centered at the origin, pointing upward (z), with the desired angle
-		Phi = FMath::Fmod(Phi, ConeHalfAngleRad);
-		
-		// get axes we need to rotate around
-		FMatrix const DirMat = FRotationMatrix(Dir.Rotation());
-		// note the axis translation, since we want the variation to be around X
-		FVector const DirZ = DirMat.GetUnitAxis( EAxis::X );
-		FVector const DirY = DirMat.GetUnitAxis( EAxis::Y );
-		
-		FVector Result = Dir.RotateAngleAxis(Phi * 180.f / PI, DirY);
-		Result = Result.RotateAngleAxis(Theta * 180.f / PI, DirZ);
-		
-		// ensure it's a unit vector (might not have been passed in that way)
-		Result = Result.GetSafeNormal();
-		
+		// Thanks Bob!
+		FVector2D Spherical = Dir.GetSafeNormal().UnitCartesianToSpherical();
+		FVector2D Delta = FVector2D((2 * RandU - 1) * ConeHalfAngleRad, (2 * RandV - 1) * ConeHalfAngleRad);
+		FVector2D SphericalAdj = Spherical + Delta;
+		FVector Result = SphericalAdj.SphericalToUnitCartesian().GetSafeNormal();
 		return Result;
-		
 	}
 	
 	/**
@@ -165,7 +147,29 @@ class FASTRANDOM_API UFastRandomLibrary : public UBlueprintFunctionLibrary
 			float const RandU = fastRandomFloat();
 			float const RandV = fastRandomFloat();
 			
-			return _FastVRandConeImplementation(Dir, ConeHalfAngleRad, RandU, RandV);
+			// Get spherical coords that have an even distribution over the unit sphere
+			// Method described at http://mathworld.wolfram.com/SpherePointPicking.html
+			float Theta = 2.f * PI * RandU;
+			float Phi = FMath::Acos((2.f * RandV) - 1.f);
+			
+			// restrict phi to [0, ConeHalfAngleRad]
+			// this gives an even distribution of points on the surface of the cone
+			// centered at the origin, pointing upward (z), with the desired angle
+			Phi = FMath::Fmod(Phi, ConeHalfAngleRad);
+			
+			// get axes we need to rotate around
+			FMatrix const DirMat = FRotationMatrix(Dir.Rotation());
+			// note the axis translation, since we want the variation to be around X
+			FVector const DirZ = DirMat.GetUnitAxis( EAxis::X );
+			FVector const DirY = DirMat.GetUnitAxis( EAxis::Y );
+			
+			FVector Result = Dir.RotateAngleAxis(Phi * 180.f / PI, DirY);
+			Result = Result.RotateAngleAxis(Theta * 180.f / PI, DirZ);
+			
+			// ensure it's a unit vector (might not have been passed in that way)
+			Result = Result.GetSafeNormal();
+			
+			return Result;
 		}
 		else
 		{
